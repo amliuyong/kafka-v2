@@ -12,17 +12,14 @@ import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.serialization.StringDeserializer;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -33,7 +30,9 @@ import java.util.Properties;
 
 public class ElasticSearchConsumer {
 
-    public static RestHighLevelClient createClient(){
+    private static JsonParser jsonParser = new JsonParser();
+
+    public static RestHighLevelClient createClient() {
 
         //////////////////////////
         /////////// IF YOU USE LOCAL ELASTICSEARCH
@@ -70,7 +69,7 @@ public class ElasticSearchConsumer {
         return client;
     }
 
-    public static KafkaConsumer<String, String> createConsumer(String topic){
+    public static KafkaConsumer<String, String> createConsumer(String topic) {
 
         String bootstrapServers = "127.0.0.1:9092";
         String groupId = "kafka-demo-elasticsearch";
@@ -93,9 +92,7 @@ public class ElasticSearchConsumer {
 
     }
 
-    private static JsonParser jsonParser = new JsonParser();
-
-    private static String extractIdFromTweet(String tweetJson){
+    private static String extractIdFromTweet(String tweetJson) {
         // gson library
         return jsonParser.parse(tweetJson)
                 .getAsJsonObject()
@@ -109,7 +106,7 @@ public class ElasticSearchConsumer {
 
         KafkaConsumer<String, String> consumer = createConsumer("twitter_tweets");
 
-        while(true){
+        while (true) {
             ConsumerRecords<String, String> records =
                     consumer.poll(Duration.ofMillis(100)); // new in Kafka 2.0.0
 
@@ -118,7 +115,7 @@ public class ElasticSearchConsumer {
 
             BulkRequest bulkRequest = new BulkRequest();
 
-            for (ConsumerRecord<String, String> record : records){
+            for (ConsumerRecord<String, String> record : records) {
 
                 // 2 strategies
                 // kafka generic ID
@@ -132,27 +129,27 @@ public class ElasticSearchConsumer {
 
                     /**
                      * Uncomment this code if you are using elastic search version < 7.0
-                    IndexRequest indexRequest = new IndexRequest(
-                       "twitter",
-                       "tweets",
-                       id // this is to make our consumer idempotent
-                    ).source(record.value(), XContentType.JSON);
-                    */
-                    
+                     IndexRequest indexRequest = new IndexRequest(
+                     "twitter",
+                     "tweets",
+                     id // this is to make our consumer idempotent
+                     ).source(record.value(), XContentType.JSON);
+                     */
+
                     /** Added for ElasticSearch >= v7.0
                      * The API to add data into ElasticSearch has slightly changes
                      * and therefore we must use this new method. 
                      * the idea is still the same
                      * read more here: https://www.elastic.co/guide/en/elasticsearch/reference/current/removal-of-types.html
                      * uncomment the code above if you use ElasticSearch 6.x or less
-                    */
+                     */
 
                     IndexRequest indexRequest = new IndexRequest("tweets")
-                       .source(record.value(), XContentType.JSON)
-                       .id(id); // this is to make our consumer idempotent
+                            .source(record.value(), XContentType.JSON)
+                            .id(id); // this is to make our consumer idempotent
 
                     bulkRequest.add(indexRequest); // we add to our bulk request (takes no time)
-                } catch (NullPointerException e){
+                } catch (NullPointerException e) {
                     logger.warn("skipping bad data: " + record.value());
                 }
 
